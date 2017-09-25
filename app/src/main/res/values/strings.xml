@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">ListatSDTest</string>
+    <string name="error_fetching_assets">Error fetching assets</string>
+    <string name="info_no_assets">No assets under %1$s</string>
+    <string name="text_select_asset">Select asset</string>
+    <string name="text_connect">Connect</string>
+    <string name="text_disconnect">Disconnect</string>
+    <string name="text_receive_data">Receive data</string>
+</resources>
