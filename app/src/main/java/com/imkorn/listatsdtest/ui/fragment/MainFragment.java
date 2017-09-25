@@ -26,6 +26,7 @@ import com.imkorn.listatsdtest.model.SaveDisplay;
 import com.imkorn.listatsdtest.model.TcpSocket;
 import com.imkorn.listatsdtest.model.entities.PrimeNumber;
 import com.imkorn.listatsdtest.model.PrimeNumberSearchHelper;
+import com.imkorn.listatsdtest.parser.exceptions.ParseException;
 import com.imkorn.listatsdtest.ui.adapters.PrimeNumbersAdapter;
 import com.imkorn.listatsdtest.ui.dialogs.SelectAssetDialog;
 
@@ -229,9 +230,16 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
             }
 
             @Override
-            public void displayError(Throwable throwable) {
+            public void displayError(@NonNull Throwable throwable) {
+                final String msg;
+                if (throwable instanceof ParseException) {
+                    msg = "Invalid asset";
+                } else {
+                    msg = throwable.getMessage();
+                }
+
                 Toast.makeText(getActivity(),
-                               throwable.getMessage(),
+                               msg,
                                Toast.LENGTH_SHORT)
                      .show();
             }

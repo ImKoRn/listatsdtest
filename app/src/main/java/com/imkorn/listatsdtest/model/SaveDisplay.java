@@ -232,7 +232,7 @@ public class SaveDisplay extends Thread implements Display {
 
         private void display(Collection<PrimeNumber> primeNumbers) {
             removeMessages(TASK_DISPLAY);
-            this.dataRef.set(primeNumbers);
+            dataRef.set(primeNumbers);
             sendMessage(obtainMessage(TASK_DISPLAY, primeNumbers));
         }
 
@@ -242,6 +242,7 @@ public class SaveDisplay extends Thread implements Display {
 
         private void displayError(Throwable throwable) {
             removeMessages(TASK_SHOW_ERROR);
+            throwableRef.set(throwable);
             sendMessage(obtainMessage(TASK_SHOW_ERROR, throwable));
         }
 

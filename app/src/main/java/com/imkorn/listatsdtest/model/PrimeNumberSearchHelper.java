@@ -15,6 +15,7 @@ import com.imkorn.listatsdtest.parser.exceptions.ParseException;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -163,8 +164,8 @@ public class PrimeNumberSearchHelper {
                     }
 
                     if (pending != null) {
-                        startHunt(pending);
                         terminate = false;
+                        startHunt(pending);
                         pending = null;
                         break;
                     }
@@ -233,6 +234,7 @@ public class PrimeNumberSearchHelper {
 
         private void startHunt(Collection<Interval> intervals) {
             if (intervals.isEmpty()) {
+                display.display(Collections.<PrimeNumber>emptyList());
                 return;
             }
 
