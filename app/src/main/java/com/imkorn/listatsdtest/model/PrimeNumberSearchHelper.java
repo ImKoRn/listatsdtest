@@ -15,8 +15,6 @@ import com.imkorn.listatsdtest.parser.exceptions.ParseException;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,15 +29,17 @@ public class PrimeNumberSearchHelper {
     private final WorkerThread workerThread;
     private volatile SearchHandler searchHandler = null;
 
-    // Display
     @NonNull
-    private final Display display;
+    private final ErrorDisplay display;
+    private Aggregator aggregator;
 
     private volatile boolean closed;
 
     public PrimeNumberSearchHelper(@NonNull String name,
-                                   @NonNull Display display) {
+                                   @NonNull ErrorDisplay display,
+                                   @NonNull Aggregator aggregator) {
         this.display = display;
+        this.aggregator = aggregator;
         workerThread = new WorkerThread(name);
         workerThread.start();
     }
@@ -70,6 +70,7 @@ public class PrimeNumberSearchHelper {
 
             closed = true;
             searchHandler.close();
+            aggregator.close();
             workerThread.quitSafely();
         }
     }
@@ -112,8 +113,6 @@ public class PrimeNumberSearchHelper {
     private static class SearchHandler extends Handler {
         // Tasks
         private static final int TASK_PROCESS_INTERVALS = 1;
-        private static final int TASK_PRIME_NUMBER_FOUND = 2;
-        private static final int TASK_HUNT_FINISHED = 3;
         private static final int TASK_PARSE_AND_FIND = 4;
 
         // Processor
@@ -127,17 +126,18 @@ public class PrimeNumberSearchHelper {
             executor = Executors.newFixedThreadPool(count);
         }
 
-        // Display
-        private final Display display;
+        // Aggregator
+        private Aggregator aggregator;
+
+        private final ErrorDisplay display;
 
         // State
-        private volatile boolean terminate;
-        private int hunters = 0;
-        private Collection<Interval> pending;
-        private final List<PrimeNumber> primeNumbers = new LinkedList<>();
+        private volatile boolean closed;
 
-        private SearchHandler(Display display) {
+        private SearchHandler(Aggregator aggregator,
+                              ErrorDisplay display) {
             this.display = display;
+            this.aggregator = aggregator;
         }
 
         @SuppressWarnings("unchecked")
@@ -146,31 +146,7 @@ public class PrimeNumberSearchHelper {
             super.handleMessage(msg);
             switch (msg.what) {
                 case TASK_PROCESS_INTERVALS: {
-                    processIntervals((Collection<Interval>) msg.obj);
-                    break;
-                }
-                case TASK_PRIME_NUMBER_FOUND: {
-                    if (terminate) {
-                        break;
-                    }
-                    primeNumbers.add((PrimeNumber) msg.obj);
-                    break;
-                }
-                case TASK_HUNT_FINISHED: {
-                    hunters--;
-
-                    if (hunters != 0) {
-                        break;
-                    }
-
-                    if (pending != null) {
-                        terminate = false;
-                        startHunt(pending);
-                        pending = null;
-                        break;
-                    }
-                    display.display(new ArrayList<>(primeNumbers));
-                    primeNumbers.clear();
+                    startHunt((Collection<Interval>) msg.obj);
                     break;
                 }
                 case TASK_PARSE_AND_FIND: {
@@ -213,7 +189,7 @@ public class PrimeNumberSearchHelper {
                         intervalsXml.getValues(intervalFactory);
 
                         removeMessages(TASK_PROCESS_INTERVALS);
-                        processIntervals(intervals);
+                        startHunt(intervals);
                     } catch (ParseException e) {
                         display.displayError(e);
                     }
@@ -222,24 +198,7 @@ public class PrimeNumberSearchHelper {
             }
         }
 
-        private void processIntervals(Collection<Interval> intervals) {
-            if (hunters != 0) {
-                terminate = true;
-                primeNumbers.clear();
-                pending = intervals;
-                return;
-            }
-            startHunt(intervals);
-        }
-
         private void startHunt(Collection<Interval> intervals) {
-            if (intervals.isEmpty()) {
-                display.display(Collections.<PrimeNumber>emptyList());
-                return;
-            }
-
-            hunters = intervals.size();
-
             for (Interval interval : intervals) {
                 executor.execute(new PrimeNumberHunter(interval));
             }
@@ -249,15 +208,8 @@ public class PrimeNumberSearchHelper {
             sendMessage(obtainMessage(TASK_PROCESS_INTERVALS, intervals));
         }
 
-        private void notifyPrimeNumberFound(PrimeNumber primeNumber) {
-            sendMessage(obtainMessage(TASK_PRIME_NUMBER_FOUND, primeNumber));
-        }
-
-        private void notifyHuntFinished() {
-            sendEmptyMessage(TASK_HUNT_FINISHED);
-        }
-
         private void close() {
+            closed = true;
             executor.shutdownNow();
             removeCallbacksAndMessages(null);
         }
@@ -276,15 +228,13 @@ public class PrimeNumberSearchHelper {
             @Override
             public void run() {
                 for (int number = interval.getFrom() + 1;
-                     number < interval.getTo() && !terminate;
+                     number < interval.getTo() && !closed;
                      number++) {
                     if (isPrimeNumber(number)) {
-                        notifyPrimeNumberFound(PrimeNumber.create(interval.getId(),
-                                                                  number));
+                        aggregator.push(PrimeNumber.create(interval.getId(),
+                                                           number));
                     }
                 }
-
-                notifyHuntFinished();
             }
 
             private boolean isPrimeNumber(int number) {
@@ -315,7 +265,7 @@ public class PrimeNumberSearchHelper {
         protected void onLooperPrepared() {
             super.onLooperPrepared();
             synchronized (this) {
-                searchHandler = new SearchHandler(display);
+                searchHandler = new SearchHandler(aggregator, display);
                 notify();
             }
         }

@@ -9,7 +9,6 @@ import java.util.Collection;
 /**
  * Created by imkorn on 24.09.17.
  */
-public interface Display {
-    void display(@NonNull Collection<PrimeNumber> primeNumbers);
+public interface ErrorDisplay {
     void displayError(@NonNull Throwable throwable);
 }

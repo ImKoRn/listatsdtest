@@ -5,19 +5,4 @@
         android:id="@+id/mi_select_asset"
         android:title="@string/text_select_asset"
         app:showAsAction="ifRoom"/>
-
-    <item
-        android:id="@+id/mi_connect"
-        android:title="@string/text_connect"
-        app:showAsAction="never"/>
-
-    <item
-        android:id="@+id/mi_disconnect"
-        android:title="@string/text_disconnect"
-        app:showAsAction="never"/>
-
-    <item
-        android:id="@+id/mi_receive_data"
-        android:title="@string/text_receive_data"
-        app:showAsAction="never"/>
 </menu>

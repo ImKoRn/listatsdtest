@@ -26,7 +26,7 @@ public class PrimeNumbersAdapter extends RecyclerView.Adapter<PrimeNumbersAdapte
     private static final int EVEN_VIEW = 2;
     private static final int ODD_VIEW = 1;
 
-    private List<PrimeNumber> items = Collections.emptyList();
+    private List<PrimeNumber> items = new ArrayList<>();
 
     private LayoutInflater inflater;
 
@@ -59,11 +59,19 @@ public class PrimeNumbersAdapter extends RecyclerView.Adapter<PrimeNumbersAdapte
         holder.bind(items.get(position));
     }
 
+    public void addItems(@Nullable Collection<PrimeNumber> items) {
+        if (items != null) {
+            final int size = this.items.size();
+            this.items.addAll(items);
+            notifyItemRangeInserted(size, items.size());
+        }
+    }
+
     public void setItems(@Nullable Collection<PrimeNumber> items) {
-        if (items == null) {
-            this.items = Collections.emptyList();
-        } else {
+        if (items != null) {
             this.items = new ArrayList<>(items);
+        } else {
+            this.items = new ArrayList<>();
         }
         notifyDataSetChanged();
     }
@@ -75,6 +83,11 @@ public class PrimeNumbersAdapter extends RecyclerView.Adapter<PrimeNumbersAdapte
     @Override
     public int getItemCount() {
         return items.size();
+    }
+
+    public void clear() {
+        items.clear();
+        notifyDataSetChanged();
     }
 
     abstract class PrimeNumberHolder extends RecyclerView.ViewHolder {

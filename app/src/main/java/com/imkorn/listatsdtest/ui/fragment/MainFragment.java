@@ -1,15 +1,16 @@
 package com.imkorn.listatsdtest.ui.fragment;
 
 import android.app.Activity;
-import android.app.DialogFragment;
-import android.app.Fragment;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.DialogFragment;
+import android.support.v4.app.Fragment;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -21,9 +22,10 @@ import android.widget.Toast;
 
 import com.imkorn.listatsdtest.R;
 import com.imkorn.listatsdtest.databinding.FragmentDisplayBinding;
-import com.imkorn.listatsdtest.model.Display;
-import com.imkorn.listatsdtest.model.SaveDisplay;
-import com.imkorn.listatsdtest.model.TcpSocket;
+import com.imkorn.listatsdtest.model.ComposeDisplay;
+import com.imkorn.listatsdtest.model.Aggregator;
+import com.imkorn.listatsdtest.model.SchedulerDisplay;
+import com.imkorn.listatsdtest.model.Socket;
 import com.imkorn.listatsdtest.model.entities.PrimeNumber;
 import com.imkorn.listatsdtest.model.PrimeNumberSearchHelper;
 import com.imkorn.listatsdtest.parser.exceptions.ParseException;
@@ -35,14 +37,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Collection;
 
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_DISCONNECTED;
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_RECONNECTING;
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_SENDING_DATA;
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_SENT;
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_TERMINATED;
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_WAITING_CONNECTION;
-import static com.imkorn.listatsdtest.model.SaveDisplay.State.STATE_WAITING_DATA;
-
 /**
  * Created by imkorn on 22.09.17.
  */
@@ -53,7 +47,6 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
 
     // Data
     private PrimeNumberSearchHelper primeNumberSearchHelper;
-    private SaveDisplay displayer;
 
     // Ui
     private FragmentDisplayBinding binding;
@@ -63,20 +56,22 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
 
     // Persistence
     private Collection<PrimeNumber> primeNumbers;
-    private TcpSocket socket;
-    private MenuItem connectMenuItem;
-    private MenuItem disconnectMenuItem;
-    private MenuItem receiveMenuItem;
+    private SchedulerDisplay display;
+    private LinearLayoutManager llm;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
         setHasOptionsMenu(true);
-        displayer = new SaveDisplay(Looper.getMainLooper());
+
+        display = new SchedulerDisplay(Looper.getMainLooper());
+
+        Socket socket = new Socket(display);
+
         primeNumberSearchHelper = new PrimeNumberSearchHelper("PrimeNumberSearchHelper:0",
-                                                              displayer);
-        socket = displayer.getTcpSocket();
+                                                              display,
+                                                              new Aggregator(socket, display));
     }
 
     @Nullable
@@ -118,7 +113,8 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
                 outRect.bottom = gap;
             }
         });
-        binding.rvPrimeNumbers.setLayoutManager(new LinearLayoutManager(activity));
+        llm = new LinearLayoutManager(activity);
+        binding.rvPrimeNumbers.setLayoutManager(llm);
     }
 
     @Override
@@ -134,52 +130,11 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
                                   inflater);
 
         inflater.inflate(R.menu.fragment_main, menu);
-
-        connectMenuItem = menu.findItem(R.id.mi_connect);
-        disconnectMenuItem = menu.findItem(R.id.mi_disconnect);
-        receiveMenuItem = menu.findItem(R.id.mi_receive_data);
-
-        if (displayer.getSendingState() == STATE_WAITING_DATA) {
-            connectMenuItem.setVisible(false);
-            disconnectMenuItem.setVisible(false);
-            receiveMenuItem.setVisible(false);
-            return;
-        }
-
-        if (socket.isConnected()) {
-            connectMenuItem.setVisible(false);
-            disconnectMenuItem.setVisible(true);
-            receiveMenuItem.setVisible(true);
-        } else {
-            connectMenuItem.setVisible(true);
-            disconnectMenuItem.setVisible(false);
-            receiveMenuItem.setVisible(false);
-        }
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
-            case R.id.mi_connect: {
-                item.setVisible(false);
-                disconnectMenuItem.setVisible(true);
-                receiveMenuItem.setVisible(true);
-                socket.connect();
-                return true;
-            }
-            case R.id.mi_disconnect: {
-                item.setVisible(false);
-                receiveMenuItem.setVisible(false);
-                connectMenuItem.setVisible(true);
-                socket.disconnect();
-                return true;
-            }
-            case R.id.mi_receive_data: {
-                item.setVisible(false);
-                disconnectMenuItem.setVisible(false);
-                socket.receive();
-                return true;
-            }
             case R.id.mi_select_asset: {
                 SelectAssetDialog.newInstance(PrimeNumberSearchHelper.SRC_FOLDER)
                                  .show(getChildFragmentManager(),
@@ -196,6 +151,8 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
         dialog.dismiss();
 
         final StringBuilder content = new StringBuilder();
+
+        primeNumbersAdapter.clear();
 
         try {
             final String link = PrimeNumberSearchHelper.SRC_FOLDER + '/' + assetName;
@@ -222,11 +179,11 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
     @Override
     public void onStart() {
         super.onStart();
-        displayer.setDisplay(new Display() {
+        display.setDisplay(new ComposeDisplay() {
             @Override
-            public void display(@NonNull Collection<PrimeNumber> primeNumbers) {
-                primeNumbersAdapter.setItems(primeNumbers);
-                binding.rvPrimeNumbers.getLayoutManager().scrollToPosition(0);
+            public void displayResult(@NonNull Collection<PrimeNumber> primeNumbers) {
+                primeNumbersAdapter.addItems(primeNumbers);
+                llm.smoothScrollToPosition(binding.rvPrimeNumbers, null, primeNumbersAdapter.getItemCount() - 1);
             }
 
             @Override
@@ -244,63 +201,17 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
                      .show();
             }
         });
-
-        final SaveDisplay.EventListener eventListener = new SaveDisplay.EventListener() {
-            @Override
-            public void onStateChange(@SaveDisplay.State int state) {
-                switch (state) {
-                    case STATE_WAITING_DATA: {
-                        getActivity().setTitle("Waiting data...");
-                        break;
-                    }
-                    case STATE_DISCONNECTED: {
-                        getActivity().setTitle("Disconnected");
-                        break;
-                    }
-                    case STATE_RECONNECTING: {
-                        getActivity().setTitle("Reconnecting...");
-                        break;
-                    }
-                    case STATE_SENDING_DATA: {
-                        getActivity().setTitle("Sending data...");
-                        break;
-                    }
-                    case STATE_SENT: {
-                        Toast.makeText(getActivity(),
-                                       "Sent",
-                                       Toast.LENGTH_SHORT)
-                             .show();
-                        break;
-                    }
-                    case STATE_TERMINATED: {
-                        getActivity().setTitle("Terminated");
-                        break;
-                    }
-                    case STATE_WAITING_CONNECTION: {
-                        if (connectMenuItem != null) {
-                            connectMenuItem.setVisible(true);
-                        }
-                        getActivity().setTitle("Waiting connection");
-                        break;
-                    }
-                }
-            }
-        };
-        displayer.setEventListener(eventListener);
-        eventListener.onStateChange(displayer.getSendingState());
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        displayer.setEventListener(null);
-        displayer.setDisplay(null);
+        display.setDisplay(null);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        displayer.close();
         primeNumberSearchHelper.close();
     }
 }
