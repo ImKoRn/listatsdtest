@@ -46,7 +46,7 @@ public class Aggregator extends Thread {
     }
 
     public void push(PrimeNumber primeNumber) {
-        synchronized (socket) {
+        synchronized(socket) {
             queue.add(primeNumber);
             socket.notify();
         }
@@ -61,12 +61,16 @@ public class Aggregator extends Thread {
                 }
 
                 synchronized (socket) {
-                    if (queue.isEmpty()) {
-                        socket.wait();
-                        continue;
-                    }
-
                     if (socket.isConnected()) {
+
+                        for (;;) {
+                            if (queue.isEmpty()) {
+                                socket.wait();
+                            } else {
+                                break;
+                            }
+                        }
+
                         final Collection<PrimeNumber> primeNumbers = new LinkedList<>();
                         queue.drainTo(primeNumbers);
                         socket.display(primeNumbers);

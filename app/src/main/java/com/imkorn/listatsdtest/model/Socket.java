@@ -4,6 +4,8 @@ import com.imkorn.listatsdtest.model.entities.PrimeNumber;
 
 import java.util.Collection;
 import java.util.Random;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Created by imkorn on 24.09.17.
@@ -14,11 +16,13 @@ public class Socket extends Thread {
 
     private volatile boolean closed;
 
-    private final ResultDisplay display;
+    private final ComposeDisplay display;
+
+    private final BlockingQueue<Collection<PrimeNumber>> queue = new LinkedBlockingQueue<>();
 
     private final Random random = new Random();
 
-    public Socket(ResultDisplay display) {
+    public Socket(ComposeDisplay display) {
         this.display = display;
         start();
     }
@@ -32,16 +36,30 @@ public class Socket extends Thread {
 
             try {
                 synchronized (this) {
-                    if (connected) {
+                    if (closed) {
+                        return;
+                    }
+
+                    wait(1);
+                    final boolean newState = random.nextInt(100) % 2 == 0;
+
+                    if (newState) {
+                        connected = true;
                         notify();
-                        wait();
-                    } else {
-                        wait(1);
-                        connected = random.nextInt(100) % 2 == 0;
+
+                        for (;;) {
+                            if (queue.isEmpty()) {
+                                wait();
+                                continue;
+                            }
+
+                            display.displayResult(queue.take());
+                            break;
+                        }
                     }
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                display.displayError(e);
             }
         }
     }
@@ -67,7 +85,7 @@ public class Socket extends Thread {
         }
 
         connected = false;
-        display.displayResult(primeNumbers);
+        queue.add(primeNumbers);
         notify();
     }
 

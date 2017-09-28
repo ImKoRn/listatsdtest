@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Created by imkorn on 9/27/17.
  */
-public class SchedulerDisplay extends Handler implements ResultDisplay, ErrorDisplay {
+public class SchedulerDisplay extends Handler implements ComposeDisplay {
 
     private static final int TASK_DISPLAY = 1;
     private static final int TASK_SHOW_ERROR = 2;

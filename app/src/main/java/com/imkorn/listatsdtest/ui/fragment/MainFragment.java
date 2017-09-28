@@ -183,6 +183,8 @@ public class MainFragment extends Fragment implements SelectAssetDialog.OnSelect
             @Override
             public void displayResult(@NonNull Collection<PrimeNumber> primeNumbers) {
                 primeNumbersAdapter.addItems(primeNumbers);
+                Log.i("TAGG",
+                      "displayResult: " + primeNumbers.size());
                 llm.smoothScrollToPosition(binding.rvPrimeNumbers, null, primeNumbersAdapter.getItemCount() - 1);
             }
 
